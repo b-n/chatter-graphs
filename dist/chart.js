@@ -112,9 +112,10 @@ class ChatterGraph {
 
     buildChart() {
         let { svg, xAx, xYx, xPx } = this.elements; 
-        const { width, height } = this;
+        const { width, height, keys } = this;
         const { left, top, right, bottom } = this.margin;
         const { pAxis } = this.axes();
+        const { color } = this.scales();
         svg = d3.select('body').append('svg')
             .attr('width', width + left + right)
             .attr('height', height + top + bottom)
@@ -133,6 +134,27 @@ class ChatterGraph {
         xPx = svg.append('g')
             .attr('class', 'p axis')
             .attr('transform', 'translate(' + width + ', 0)');
+    
+
+        const legend = svg.append("g").selectAll(".legend")
+            .data(keys)
+          .enter().append("g")
+            .attr("class", "legend")
+            .attr("transform", (d, i) => { return "translate(0," + i * 20 + ")"; })
+            .style("font", "10px sans-serif");
+
+        legend.append("rect")
+            .attr("x", width - 36)
+            .attr("width", 18)
+            .attr("height", 18)
+            .attr("fill", d => color(d));
+
+        legend.append("text")
+            .attr("x", width - 40)
+            .attr("y", 9)
+            .attr("dy", ".35em")
+            .attr("text-anchor", "end")
+            .text(d => d); 
         
         this.elements = { svg, xAx, xYx, xPx };
     }
@@ -140,8 +162,10 @@ class ChatterGraph {
     updateData(data) {
         data.sort((a, b) => +b.chatterInfluence.percentile - +a.chatterInfluence.percentile);
         
-        const minRank = d3.min(data, d => +d.chatterInfluence.percentile); 
-        this.data = data.filter(d => +d.chatterInfluence.percentile !== minRank);
+        //const minRank = d3.min(data, d => +d.chatterInfluence.percentile); 
+        const minRank = 30;
+        //this.data = data.filter(d => +d.chatterInfluence.percentile > minRank);
+        this.data = data.filter(d => d.chatterInfluence.rank < minRank);
         
         const { x } = this.scales();
         x.domain(this.data.map(user => user.name));
@@ -196,8 +220,7 @@ class ChatterGraph {
         //build/update rectangles
         const layers = svg.selectAll('.layer')
             .data(layerData)
-            .enter()
-            .append('g')
+          .enter().append('g')
             .attr('class', 'layer')
             .attr('transform', d => 'translate(' + xg_val(d, type) + ', 0)')
             .attr('fill', d => color(d.key));    
@@ -206,15 +229,16 @@ class ChatterGraph {
             .delay((d, i) => i * 10)
             .attr('transform', d => 'translate(' + xg_val(d, type) + ', 0)' );
 
-        layers.selectAll('rect')
+        layers.selectAll('.bar')
             .data(d => d)
-            .enter().append('rect')
+          .enter().append('rect')
+            .attr('class', 'bar')
             .attr('x', d => x_val(d, type))
             .attr('y', d => y(0))
             .attr('width', d => w_val(d, type))
             .attr('height', 0);
 
-        svg.selectAll('rect').transition()
+        svg.selectAll('.bar').transition()
             .delay((d, i) => i * 10)
             .attr('y', d => y(y_val(d, type)))
             .attr('width', d => w_val(d, type))
