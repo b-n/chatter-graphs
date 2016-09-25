@@ -208,14 +208,14 @@ class ChatterGraph {
         y.domain([ 0, yMax ]);
         
         //redraw axes
-        xAx.call(xAxis)
+        xAx.transition().call(xAxis)
             .selectAll('text')
             .attr('y', 0)
             .attr('x', -9)
             .attr('dy', '.35em')
             .attr('transform', 'rotate(270)')
             .style('text-anchor', 'end');
-        xYx.call(yAxis);
+        xYx.transition().call(yAxis);
 
         //build/update rectangles
         const layers = svg.selectAll('.layer')
