@@ -35,30 +35,35 @@ class ChatterGraph {
         if (!this.pAxis) this.pAxis = d3.axisRight(p);
         return { xAxis: this.xAxis, yAxis: this.yAxis, pAxis: this.pAxis };
     }
+        
+    set stack({ keys, fitType }) {
+        if (!this.shapes.stack) this.shapes.stack = d3.stack()
+            .value((d, key) => {
+                switch(key) {
+                    case 'Comments Posted': 
+                        return d.chatterActivity.commentCount;
+                    case 'Comments Received':
+                        return d.chatterActivity.commentReceivedCount;
+                    case 'Posts':
+                        return d.chatterActivity.postCount;
+                    case 'Followers':
+                        return d.followersCount;
+                    case 'Groups':
+                        return d.groupCount;
+                    default:
+                        return;
+                }
+            });
+
+        const fit = fitType === 'standard' ? d3.stackOffsetNone : d3.stackOffsetExpand;
+        this.shapes.stack.keys(keys).offset(fit);
+    }
+
+    get stack() {
+        return this.shapes.stack
+    }
 
     shapes() { 
-        if (!this.stack) {
-            const { keys } = this;
-            this.stack = d3.stack()
-                .keys(keys)
-                .value((d, key) => {
-                    switch(key) {
-                        case 'Comment Posted': 
-                            return d.chatterActivity.commentCount;
-                        case 'Comment Received':
-                            return d.chatterActivity.commentReceivedCount;
-                        case 'Post Count':
-                            return d.chatterActivity.postCount;
-                        case 'Followers':
-                            return d.followersCount;
-                        case 'Groups':
-                            return d.groupCount;
-                        default:
-                            return;
-                    }
-                });
-        }
-
         if (!this.line) {
             const { x, p } = this.scales();
             this.line = d3.line()
@@ -84,46 +89,48 @@ class ChatterGraph {
 
     accessors() {
         const { x } = this.scales();
-        const { keys } = this;
-        if (!this.xg_val) this.xg_val = (d, type) => type === 'stack' ? 0 : x.bandwidth() / keys.length * (d.index - 1);
-        if (!this.x_val) this.x_val = (d, type) => type === 'stack' ? x(d.data.name) : x(d.data.name) + x.bandwidth() / keys.length;
-        if (!this.y_val) this.y_val = (d, type) => type === 'stack' ? d[1] : d[1] - d[0];
-        if (!this.w_val) this.w_val = (d, type) => type === 'stack' ? x.bandwidth() : x.bandwidth() / keys.length;
-        if (!this.h_val) this.h_val = (d, type) => d[1] - d[0];
-        return { xg_val: this.xg_val, x_val: this.x_val, y_val: this.y_val, w_val: this.w_val, h_val: this.h_val };
+        const { keys, displayType } = this;
+        this.w_val = d => displayType === 'stacked' ? x.bandwidth() : x.bandwidth() / keys.length;
+        this.x_val = d => displayType === 'stacked' ? x(d.data.name) : x(d.data.name) + x.bandwidth() / keys.length * d.index;
+        this.y_val = d => displayType === 'stacked' ? d.d1 : d.d1 - d.d0;
+        this.w_val = d => displayType === 'stacked' ? x.bandwidth() : x.bandwidth() / keys.length;
+        this.h_val = d => d.d1 - d.d0;
+        return { x_val: this.x_val, y_val: this.y_val, w_val: this.w_val, h_val: this.h_val };
     }
 
-    constructor(width, height) {
-        this.margin = { top: 10, right: 40, bottom: 100, left: 40 };
-        
+    constructor(elementSelector, width, height, options) {
+        this.margin = { top: 10, right: 150, bottom: 100, left: 40 };
         const { left, right, top, bottom } = this.margin;
         this.width = width - left - right;
         this.height = height - top - bottom;    
         
-        this.keys = ['Comment Posted', 'Comment Received', "Post Count", "Followers", "Groups"];
-        this.type = 'stack';
+        this.elementSelector = elementSelector;
+        
+        this.options = options;
         this.data = null;
     }
 
-    switchType() {
-        this.type = this.type === 'stack' ? 'group' : 'stack';
-        this.updateBars();
+    set options(opt) {
+        this.minRank = opt && opt.minRank ? opt.minRank : 330;
+        this.keys = opt && opt.keys ? opt.keys : ['Comments Posted', 'Comments Received', "Posts", "Followers", "Groups"];
+        this.displayType = opt && opt.displayType ? opt.displayType : 'grouped';
+        this.fitType = opt && opt.fitType ? opt.fitType : 'standard';
+        this.stack = { keys: this.keys, fitType: this.fitType };
     }
 
     buildChart() {
         let { svg, xAx, xYx, xPx } = this.elements; 
-        const { width, height, keys } = this;
+        const { width, height, keys, elementSelector } = this;
         const { left, top, right, bottom } = this.margin;
         const { pAxis } = this.axes();
         const { color } = this.scales();
-        svg = d3.select('body').append('svg')
+
+        svg = d3.select(elementSelector).append('svg')
             .attr('width', width + left + right)
             .attr('height', height + top + bottom)
           .append('g')
             .attr('transform', 'translate(' + left + ',' + top + ')');
 
-        svg.on('click', () => { this.switchType() });
-        
         xAx = svg.append('g')
             .attr('class', 'x axis')
             .attr('transform', 'translate(0, ' + height + ')');
@@ -144,37 +151,41 @@ class ChatterGraph {
             .style("font", "10px sans-serif");
 
         legend.append("rect")
-            .attr("x", width - 36)
+            .attr("x", width + 30)
             .attr("width", 18)
             .attr("height", 18)
             .attr("fill", d => color(d));
 
         legend.append("text")
-            .attr("x", width - 40)
+            .attr("x", width + 57)
             .attr("y", 9)
             .attr("dy", ".35em")
-            .attr("text-anchor", "end")
+            .attr("text-anchor", "start")
             .text(d => d); 
         
         this.elements = { svg, xAx, xYx, xPx };
     }
-    
+
     updateData(data) {
-        data.sort((a, b) => +b.chatterInfluence.percentile - +a.chatterInfluence.percentile);
-        
-        //const minRank = d3.min(data, d => +d.chatterInfluence.percentile); 
-        const minRank = 30;
-        //this.data = data.filter(d => +d.chatterInfluence.percentile > minRank);
-        this.data = data.filter(d => d.chatterInfluence.rank < minRank);
+        this.rawData = data;
+    }
+
+    calculateChartData() {
+         
+        const { minRank } = this;
+        const filteredData = this.rawData.filter(d => d.chatterInfluence.rank < minRank);
+        this.data = filteredData.sort((a, b) => +b.chatterInfluence.percentile - +a.chatterInfluence.percentile);
         
         const { x } = this.scales();
         x.domain(this.data.map(user => user.name));
 
         const { stack } = this.shapes();
-        this.layerData = stack(this.data);
-        
-        this.updateBars();
-        this.updateLines();
+        const layerData = stack(this.data);
+
+        this.layerData = layerData.reduce((prev, current) => {
+            const newValues = current.map(item => ({ key: current.key, index: current.index, d0: item[0], d1: item[1], data: item.data}));
+            return prev.concat(newValues);
+        }, []);
     }
 
     updateLines() {
@@ -196,7 +207,7 @@ class ChatterGraph {
     }
 
     updateBars() {
-        const { layerData, type } = this;
+        const { layerData, displayType } = this;
         const { x, y, color } = this.scales();
         const { line } = this.shapes();
         const { xAxis, yAxis } = this.axes();
@@ -204,7 +215,7 @@ class ChatterGraph {
         const { svg, xAx, xYx } = this.elements;
 
         //update domains
-        const yMax = d3.max(layerData, d => d3.max(d, e => y_val(e, type)));
+        const yMax = d3.max(layerData, d => y_val(d, displayType));
         y.domain([ 0, yMax ]);
         
         //redraw axes
@@ -217,33 +228,35 @@ class ChatterGraph {
             .style('text-anchor', 'end');
         xYx.transition().call(yAxis);
 
-        //build/update rectangles
-        const layers = svg.selectAll('.layer')
-            .data(layerData)
-          .enter().append('g')
-            .attr('class', 'layer')
-            .attr('transform', d => 'translate(' + xg_val(d, type) + ', 0)')
-            .attr('fill', d => color(d.key));    
-
-        svg.selectAll('.layer').transition()
+        //create and update bars
+        const bars = svg.selectAll('.bar')
+            .data(layerData, d => d.data.name + '-' + d.key + '-' + d.index);
+        
+        bars.exit()
+            .transition()
             .delay((d, i) => i * 10)
-            .attr('transform', d => 'translate(' + xg_val(d, type) + ', 0)' );
-
-        layers.selectAll('.bar')
-            .data(d => d)
-          .enter().append('rect')
+            .attr('height', 0)
+            .attr('y', d => y(y_val(d) + y(0) - y(h_val(d))))
+            .remove();
+        
+        bars.enter().append('rect')
             .attr('class', 'bar')
-            .attr('x', d => x_val(d, type))
-            .attr('y', d => y(0))
-            .attr('width', d => w_val(d, type))
-            .attr('height', 0);
-
-        svg.selectAll('.bar').transition()
+            .attr('x', x_val)
+            .attr('y', y(0))
+            .attr('width', w_val)
+            .attr('fill', d => color(d.key))
+            .attr('height', 0)
+          .transition()
             .delay((d, i) => i * 10)
-            .attr('y', d => y(y_val(d, type)))
-            .attr('width', d => w_val(d, type))
-            .attr('x', d => x_val(d, type))
-            .attr('height', d => y(0) - y(h_val(d, type)));
+            .attr('y', d => y(y_val(d)))
+            .attr('height', d => y(0) - y(h_val(d)));
+
+        bars.transition()
+            .delay((d, i) => i * 10)
+            .attr('x', x_val)
+            .attr('y', d => y(y_val(d)))
+            .attr('height', d => y(0) - y(h_val(d)))
+            .attr('width', w_val)
     }
 }
 

@@ -3,26 +3,123 @@
     <head>
         <script src="https://d3js.org/d3.v4.min.js"></script>
         <script src="chart.js"></script>
+        <link rel="stylesheet" href="styles/normalize.css" />
+        <link rel="stylesheet" href="styles/skeleton.css" />
         <style>
             .p-line {
                 fill: none;
                 stroke: black;
                 stroke-width: 1.5px;
             }
+
+            .controls {
+                padding: 10px 20px;
+            }
         </style>
 
     </head>
     <body>
+        <div class="controls">
+            <h4>Chart Controls</h4>
+            <form onsubmit="return false;">
+                <div class="row">
+                    <div class="six columns">
+                        <label>Minimum Rank</label>
+                        <input class="u-full-width" type="number" id="minimumRank" value="330" />
+                        <label>Display</label> 
+                        <select class="u-full-width" id="displayType">
+                            <option value="stacked" selected>Stacked</option>
+                            <option value="grouped">Grouped</option>
+                        </select>
+                        <label>Fit</label>
+                        <select class="u-full-width" id="fitType">
+                            <option value="standard" selected>Standard</option>
+                            <option value="proportional">Proportional</option>
+                        </select>
+                    </div>
+                    <div class="six columns">
+                        <label>Values</label>
+                        <label>
+                            <input type="checkbox" class="data-key" data-value="Comments Posted" checked />
+                            <span class="label-body">Comments Posted</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="data-key" data-value="Comments Received" checked />
+                            <span class="label-body">Comments Received</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="data-key" data-value="Posts" checked />
+                            <span class="label-body">Posts</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="data-key" data-value="Followers" checked />
+                            <span class="label-body">Followers</span>
+                        </label>
+                        <label>
+                            <input type="checkbox" class="data-key" data-value= "Groups" checked />
+                            <span class="label-body">Groups</span>
+                        </label>
+                    </div>
+                </div>
+            </form>
+        </div>
+        <div id="mainChart"></div>
         <script>
-
         const init = () => {
-            const chart = new ChatterGraph(1000,800);
-            chart.buildChart();
-            //buildChart();
+            const chart = new ChatterGraph("#mainChart", 1400,800);
+            chart.buildChart(); 
+            chart.options = getFormOptions();
+            
+            setupFormHandlers(chart);
 
             getChatterPosts()
-                .then(data => chart.updateData(data));
+                .then(data => {
+                    chart.updateData(data)
+                    chart.calculateChartData();
+                    chart.updateLines();
+                    chart.updateBars();
+                });
         };
+
+        const setupFormHandlers = chart => {
+            const inputElements = document.getElementsByTagName('input');
+            [].forEach.call(inputElements, element => element.addEventListener('change', () => { updateChart(chart); }));
+            const selectElements = document.getElementsByTagName('select');
+            [].forEach.call(selectElements, element => element.addEventListener('change', () => { updateChart(chart); }));
+        }
+
+        const updateChart = chart => {
+            chart.options = getFormOptions();
+            chart.calculateChartData();
+            chart.updateBars();
+        }
+
+        const getFormOptions = () => {
+            const minRank = document.getElementById('minimumRank').value;
+            const displayType = getSelectValue('displayType');
+            const fitType = getSelectValue('fitType');
+            
+            const keyElements = document.getElementsByClassName('data-key');
+
+            const keysFromElements = [].map.call(keyElements, (element) => {
+                if (element.checked) return element.getAttribute('data-value');
+                return '';
+            });
+
+            const keys = keysFromElements.filter(key => key !== '');
+            
+            return {
+                minRank,
+                displayType,
+                fitType,
+                keys
+            }
+        }
+
+        const getSelectValue = (elementId) => {
+            const element = document.getElementById(elementId);
+            return element.item(element.selectedIndex).value;
+        }
 
         const getChatterPosts = () => {
             return fetch('/data').then(result => result.json());
