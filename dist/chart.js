@@ -168,10 +168,13 @@ class ChatterGraph {
 
     updateData(data) {
         this.rawData = data;
+        const maxRank = d3.max(data, d => d.chatterInfluence.rank);
+        d3.select('#minimumRank')
+            .attr('max', maxRank)
+            .attr('value', maxRank);
     }
 
     calculateChartData() {
-         
         const { minRank } = this;
         const filteredData = this.rawData.filter(d => d.chatterInfluence.rank < minRank);
         this.data = filteredData.sort((a, b) => +b.chatterInfluence.percentile - +a.chatterInfluence.percentile);
@@ -185,7 +188,7 @@ class ChatterGraph {
         this.layerData = layerData.reduce((prev, current) => {
             const newValues = current.map(item => ({ key: current.key, index: current.index, d0: item[0], d1: item[1], data: item.data}));
             return prev.concat(newValues);
-        }, []);
+        }, []).sort((a, b) => +b.data.chatterInfluence.percentile - +a.data.chatterInfluence.percentile);
     }
 
     updateLines() {
