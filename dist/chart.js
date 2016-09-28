@@ -230,13 +230,12 @@ class ChatterGraph {
 
         //create and update bars
         const bars = svg.selectAll('.bar')
-            .data(layerData, d => d.data.name + '-' + d.key + '-' + d.index);
+            .data(layerData, d => d.data.name + '-' + d.key);
         
         bars.exit()
-            .transition()
+          .transition()
             .delay((d, i) => i * 10)
-            .attr('height', 0)
-            .attr('y', d => y(y_val(d) + y(0) - y(h_val(d))))
+            .style('opacity', 0)
             .remove();
         
         bars.enter().append('rect')
@@ -246,17 +245,19 @@ class ChatterGraph {
             .attr('width', w_val)
             .attr('fill', d => color(d.key))
             .attr('height', 0)
+            .style('opacity', 1)
           .transition()
             .delay((d, i) => i * 10)
             .attr('y', d => y(y_val(d)))
             .attr('height', d => y(0) - y(h_val(d)));
 
-        bars.transition()
+        bars
+          .transition()
             .delay((d, i) => i * 10)
             .attr('x', x_val)
             .attr('y', d => y(y_val(d)))
             .attr('height', d => y(0) - y(h_val(d)))
-            .attr('width', w_val)
+            .attr('width', w_val);
     }
 }
 
